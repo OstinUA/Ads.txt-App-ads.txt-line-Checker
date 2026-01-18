@@ -10,7 +10,7 @@ import os
 # 1. НАСТРОЙКИ СТРАНИЦЫ И СТИЛИ (CSS)
 # ==========================================
 
-# Путь к иконке (создай папку icons и положи туда файл icon.png)
+# Путь к иконке
 icon_path = "icons/icon.png"
 page_icon = icon_path if os.path.exists(icon_path) else None
 
@@ -20,28 +20,32 @@ st.set_page_config(
     page_icon=page_icon
 )
 
-# Принудительная тема (Черный/Серый + #21aeb3)
+# ПРИНУДИТЕЛЬНЫЙ ДИЗАЙН: Только ЧБ + #21aeb3
 st.markdown("""
     <style>
-    /* Основной фон приложения */
+    /* 1. Глобальный фон и текст */
     .stApp {
-        background-color: #1e1e1e;
+        background-color: #1e1e1e; /* Темно-серый фон */
         color: #e0e0e0;
     }
     
-    /* Заголовки */
-    h1, h2, h3 {
+    /* 2. Заголовки */
+    h1, h2, h3, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
         color: #ffffff !important;
     }
     
-    /* Поля ввода (TextArea) */
+    /* 3. Поля ввода (TextArea) */
     .stTextArea textarea {
         background-color: #2d2d2d !important;
         color: #ffffff !important;
         border: 1px solid #444 !important;
     }
+    .stTextArea textarea:focus {
+        border-color: #21aeb3 !important;
+        box-shadow: 0 0 0 1px #21aeb3 !important;
+    }
     
-    /* Кнопки */
+    /* 4. Кнопки (Primary) */
     div.stButton > button {
         background-color: #21aeb3 !important;
         color: white !important;
@@ -50,24 +54,41 @@ st.markdown("""
         transition: 0.3s;
     }
     div.stButton > button:hover {
-        background-color: #178a8e !important; /* Темнее при наведении */
+        background-color: #1a8a8e !important; /* Чуть темнее при наведении */
         border: 1px solid #ffffff !important;
     }
+    div.stButton > button:active {
+        background-color: #21aeb3 !important;
+    }
+
+    /* 5. Убираем красный цвет из стандартных алертов (Errors/Warnings) */
+    div[data-baseweb="notification"] {
+        background-color: #2d2d2d !important;
+        border: 1px solid #21aeb3 !important; /* Вместо красной рамки - наша */
+        color: #ffffff !important;
+    }
+    /* Иконки внутри алертов */
+    div[data-baseweb="notification"] svg {
+        fill: #21aeb3 !important;
+    }
     
-    /* Таблицы (Dataframe) */
+    /* 6. Таблицы */
     div[data-testid="stDataFrame"] {
         background-color: #2d2d2d;
     }
     
-    /* Радио кнопки и чекбоксы */
+    /* 7. Радио-кнопки и чекбоксы */
     .stRadio label, .stCheckbox label {
         color: #e0e0e0 !important;
     }
-    
-    /* Акцентный цвет для выделения */
-    .highlight-text {
-        color: #21aeb3;
-        font-weight: bold;
+    /* Акцент при выборе радио-кнопки */
+    div[role="radiogroup"] > div[aria-checked="true"] {
+        background-color: #21aeb3 !important;
+    }
+
+    /* 8. Прогресс-бар */
+    .stProgress > div > div > div > div {
+        background-color: #21aeb3 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -78,7 +99,6 @@ st.title("Ads.txt / App-ads.txt Validator")
 # 2. ФУНКЦИИ ЛОГИКИ (BACKEND)
 # ==========================================
 
-# User-Agent как у реального браузера Chrome
 LIVE_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 def get_session():
@@ -86,18 +106,14 @@ def get_session():
     s.headers.update({
         'User-Agent': LIVE_UA,
         'Accept': 'text/plain,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Cache-Control': 'no-cache', # Требуем свежую версию
+        'Cache-Control': 'no-cache',
     })
     return s
 
 def fetch_file_content(domain, filename):
-    """
-    Надежная функция скачивания с паузами и повторными попытками.
-    """
     session = get_session()
     domain_clean = domain.strip().replace("https://", "").replace("http://", "").split("/")[0]
     
-    # Варианты URL для перебора
     urls = [
         f"https://{domain_clean}/{filename}",
         f"http://{domain_clean}/{filename}"
@@ -106,9 +122,8 @@ def fetch_file_content(domain, filename):
     last_error = "Unknown error"
 
     for url in urls:
-        # Попытка 1: Обычная
         try:
-            # Имитируем задержку человека (0.5 - 1.5 сек), чтобы не блочили
+            # Надежная задержка
             time.sleep(random.uniform(0.5, 1.5))
             
             response = session.get(url, timeout=15, allow_redirects=True)
@@ -118,15 +133,13 @@ def fetch_file_content(domain, filename):
             last_error = f"HTTP {response.status_code}"
             
         except requests.exceptions.SSLError:
-            # Попытка 2: Если ошибка SSL, пробуем без проверки сертификата (перекрестная проверка)
             try:
-                time.sleep(1) # Пауза перед повтором
+                time.sleep(1)
                 response = session.get(url, timeout=15, allow_redirects=True, verify=False)
                 if response.status_code == 200:
                     return response.text, "OK (SSL Warning)", False
             except Exception as e:
                 last_error = str(e)
-                
         except Exception as e:
             last_error = str(e)
             
@@ -138,7 +151,6 @@ def parse_ads_file(content):
         return parsed_lines
 
     for line in content.splitlines():
-        # Удаляем комментарии (#) и пробелы
         clean_line = line.split('#')[0].strip()
         if not clean_line:
             continue
@@ -204,7 +216,7 @@ def validate_domain(target_domain, filename, references):
                 else:
                     match_status = "Partially matched"
                     details = f"Type mismatch: found {record['type']}, expected {ref_type}"
-                    # Не прерываем, ищем дальше полное совпадение
+                    # Не прерываем, ищем дальше
         
         results.append({
             "URL": target_domain,
@@ -220,7 +232,6 @@ def validate_domain(target_domain, filename, references):
 # 3. ИНТЕРФЕЙС (UI)
 # ==========================================
 
-# Настройки
 st.subheader("Settings")
 col_settings, col_dummy = st.columns([1, 4])
 with col_settings:
@@ -231,7 +242,6 @@ with col_settings:
 
 st.markdown("---")
 
-# Ввод данных (Две колонки рядом, как ты просил)
 st.subheader("Input Data")
 
 col1, col2 = st.columns(2)
@@ -274,15 +284,14 @@ if start_btn:
                 references.append(parsed)
 
         if not references:
-            st.warning("No valid reference lines found.")
+            st.warning("No valid reference lines found.") # Теперь это будет серым, не желтым/красным
             st.stop()
 
         progress_bar = st.progress(0)
         status_text = st.empty()
         all_results = []
         
-        # Надежный режим: Мало потоков (5), чтобы не было ошибок
-        # Это обеспечивает ту самую "проверку на верняка"
+        # 5 потоков для надежности
         MAX_WORKERS = 5 
         
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -317,20 +326,20 @@ if start_btn:
         cols_order = ["URL", "File", "Result", "Details", "Reference"]
         df = df[cols_order]
 
-        # Логика цветов для таблицы
+        # Логика цветов таблицы (Убрали красный!)
         def color_status(val):
-            # Зеленый для Valid
             if val == "Valid":
+                # Успех: Наш фирменный цвет
                 return 'background-color: #21aeb3; color: white' 
-            # Оранжевый для Partial
             elif val == "Partially matched":
-                return 'background-color: #d69e2e; color: black'
-            # Красный для Not Found
+                # Частично: Черный фон, цветной текст
+                return 'background-color: #000000; color: #21aeb3; font-weight: bold'
             elif val == "Not found":
-                return 'background-color: #b91c1c; color: white'
-            # Темно-красный для ошибок
+                # Не найдено: Темно-серый (нейтральный)
+                return 'background-color: #383838; color: #aaaaaa'
             elif val == "Error":
-                return 'background-color: #7f1d1d; color: white'
+                # Ошибка сети: Тоже серый, но другой оттенок
+                return 'background-color: #2d2d2d; color: #888888'
             return ''
 
         st.dataframe(
