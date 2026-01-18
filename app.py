@@ -21,13 +21,16 @@ st.markdown("""
         background-color: #1e1e1e;
         color: #e0e0e0;
     }
+    
     h1, h2, h3, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
         color: #ffffff !important;
     }
+    
     h3 {
         padding-top: 10px !important;
         padding-bottom: 5px !important;
     }
+    
     .stTextArea textarea {
         background-color: #2d2d2d !important;
         color: #ffffff !important;
@@ -37,6 +40,7 @@ st.markdown("""
         border-color: #21aeb3 !important;
         box-shadow: 0 0 0 1px #21aeb3 !important;
     }
+    
     div.stButton > button {
         background-color: #21aeb3 !important;
         color: white !important;
@@ -48,6 +52,7 @@ st.markdown("""
         background-color: #1a8a8e !important;
         border: 1px solid #ffffff !important;
     }
+    
     div[data-baseweb="notification"] {
         background-color: #2d2d2d !important;
         border: 1px solid #21aeb3 !important;
@@ -56,9 +61,11 @@ st.markdown("""
     div[data-baseweb="notification"] svg {
         fill: #21aeb3 !important;
     }
+    
     div[data-testid="stDataFrame"] {
         background-color: #2d2d2d;
     }
+    
     .stRadio label {
         color: #e0e0e0 !important;
     }
@@ -69,27 +76,45 @@ st.markdown("""
     div[role="radiogroup"] > div {
         color: #e0e0e0 !important;
     }
+
     .stProgress > div > div > div > div {
         background-color: #21aeb3 !important;
     }
+
     .stRadio {
         margin-top: 0px !important;
         margin-bottom: 0px !important;
     }
+    
     div[data-testid="column"] > div > div {
         gap: 0.5rem !important;
     }
+    
     .compact-hr {
         margin: 10px 0 !important;
         border: 0;
         border-top: 1px solid #444;
     }
+    
+    [data-testid="stImage"] {
+        margin-top: 15px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("Ads.txt / App-ads.txt Validator")
+col_head1, col_head2 = st.columns([0.6, 12])
+with col_head1:
+    if os.path.exists(icon_path):
+        st.image(icon_path, width=65)
+with col_head2:
+    st.title("Ads.txt / App-ads.txt Validator")
 
 LIVE_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+if 'results_df' not in st.session_state:
+    st.session_state.results_df = None
+if 'all_results_raw' not in st.session_state:
+    st.session_state.all_results_raw = None
 
 def get_session():
     s = requests.Session()
@@ -115,15 +140,23 @@ def fetch_file_content(domain, filename):
         try:
             time.sleep(random.uniform(0.5, 1.5))
             response = session.get(url, timeout=15, allow_redirects=True)
+            
             if response.status_code == 200:
-                return response.text, "OK", False
+                text = response.text
+                if "<!doctype html" in text.lower() or "<html" in text.lower():
+                    return None, "Error: HTML Page instead of txt", True
+                return text, "OK", False
+                
             last_error = f"HTTP {response.status_code}"
         except requests.exceptions.SSLError:
             try:
                 time.sleep(1)
                 response = session.get(url, timeout=15, allow_redirects=True, verify=False)
                 if response.status_code == 200:
-                    return response.text, "OK (SSL Warning)", False
+                    text = response.text
+                    if "<!doctype html" in text.lower() or "<html" in text.lower():
+                        return None, "Error: HTML Page instead of txt", True
+                    return text, "OK (SSL Warning)", False
             except Exception as e:
                 last_error = str(e)
         except Exception as e:
@@ -295,42 +328,48 @@ if start_btn:
         progress_bar.empty()
         status_text.empty()
         
-        st.markdown('<div class="compact-hr"></div>', unsafe_allow_html=True)
-        st.subheader("Results")
-        
         df = pd.DataFrame(all_results)
         cols_order = ["URL", "File", "Result", "Details", "Reference"]
         df = df[cols_order]
+        
+        st.session_state.results_df = df
+        st.session_state.all_results_raw = all_results
 
-        if view_mode == "Errors / Warnings Only":
-            df = df[df['Result'] != 'Valid']
+if st.session_state.results_df is not None:
+    st.markdown('<div class="compact-hr"></div>', unsafe_allow_html=True)
+    st.subheader("Results")
+    
+    final_df = st.session_state.results_df.copy()
+    
+    if view_mode == "Errors / Warnings Only":
+        final_df = final_df[final_df['Result'] != 'Valid']
 
-        if df.empty and view_mode == "Errors / Warnings Only" and all_results:
-             st.success("All checked records are VALID. No errors found.")
-        elif df.empty and not all_results:
-             st.info("No results to display.")
-        else:
-            def color_status(val):
-                if val == "Valid":
-                    return 'background-color: #21aeb3; color: white' 
-                elif val == "Partially matched":
-                    return 'background-color: #000000; color: #21aeb3; font-weight: bold'
-                elif val == "Not found":
-                    return 'background-color: #383838; color: #aaaaaa'
-                elif val == "Error":
-                    return 'background-color: #2d2d2d; color: #888888'
-                return ''
+    if final_df.empty and view_mode == "Errors / Warnings Only" and st.session_state.all_results_raw:
+            st.success("🎉 Great job! All checked records are VALID. No errors found.")
+    elif final_df.empty and not st.session_state.all_results_raw:
+            st.info("No results to display.")
+    else:
+        def color_status(val):
+            if val == "Valid":
+                return 'background-color: #21aeb3; color: white' 
+            elif val == "Partially matched":
+                return 'background-color: #000000; color: #21aeb3; font-weight: bold'
+            elif val == "Not found":
+                return 'background-color: #383838; color: #aaaaaa'
+            elif val == "Error":
+                return 'background-color: #2d2d2d; color: #888888'
+            return ''
 
-            st.dataframe(
-                df.style.map(color_status, subset=['Result']),
-                use_container_width=True,
-                height=600
-            )
-            
-            csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label=f"Download CSV ({view_mode})",
-                data=csv,
-                file_name="report.csv",
-                mime="text/csv",
-            )
+        st.dataframe(
+            final_df.style.map(color_status, subset=['Result']),
+            use_container_width=True,
+            height=600
+        )
+        
+        csv = final_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label=f"Download CSV ({view_mode})",
+            data=csv,
+            file_name="report.csv",
+            mime="text/csv",
+        )
