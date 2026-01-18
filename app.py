@@ -306,7 +306,7 @@ if start_btn:
             df = df[df['Result'] != 'Valid']
 
         if df.empty and view_mode == "Errors / Warnings Only" and all_results:
-             st.success("🎉 Great job! All checked records are VALID. No errors found.")
+             st.success("All checked records are VALID. No errors found.")
         elif df.empty and not all_results:
              st.info("No results to display.")
         else:
