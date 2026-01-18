@@ -10,7 +10,7 @@ icon_path = "icons/icon.png"
 page_icon = icon_path if os.path.exists(icon_path) else None
 
 st.set_page_config(
-    page_title="Ads.txt Validator", 
+    page_title="Ads.txt / App-ads.txt Validator", 
     layout="wide", 
     page_icon=page_icon
 )
@@ -246,7 +246,7 @@ col_settings, col_dummy = st.columns([1, 4])
 with col_settings:
     file_type = st.radio(
         "File Type",
-        ("ads.txt", "app-ads.txt")
+        ("app-ads.txt", "ads.txt")
     )
     
     st.markdown('<div class="compact-hr"></div>', unsafe_allow_html=True)
