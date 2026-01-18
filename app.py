@@ -88,6 +88,32 @@ st.markdown("""
     .stProgress > div > div > div > div {
         background-color: #21aeb3 !important;
     }
+
+    /* === COMPACT SPACING (Уменьшенные отступы) === */
+    
+    /* Уменьшаем отступ снизу у заголовков */
+    h3 {
+        padding-bottom: 0.2rem !important;
+        padding-top: 0.5rem !important;
+    }
+    
+    /* Уменьшаем отступы вокруг радио-кнопок */
+    .stRadio {
+        margin-top: -15px !important; /* Подтягиваем вверх */
+        margin-bottom: -10px !important; /* Подтягиваем снизу */
+    }
+    
+    /* Уменьшаем расстояние между элементами внутри колонок */
+    div[data-testid="column"] > div > div {
+        gap: 0.5rem !important;
+    }
+    
+    /* Компактный разделитель */
+    .compact-hr {
+        margin: 5px 0 !important;
+        border: 0;
+        border-top: 1px solid #444;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -229,16 +255,17 @@ with col_settings:
         ("ads.txt", "app-ads.txt")
     )
     
-    st.write("---")
+    # Компактный разделитель (вместо ---)
+    st.markdown('<div class="compact-hr"></div>', unsafe_allow_html=True)
     
-    # 2. Новая настройка вывода (По умолчанию: Errors Only)
+    # 2. Настройка вывода
     view_mode = st.radio(
         "Output View",
         ("Show All Results", "Errors / Warnings Only"),
-        index=1  # 1 означает, что второй вариант выбран по умолчанию
+        index=1
     )
 
-st.markdown("---")
+st.markdown('<div class="compact-hr" style="margin: 15px 0 !important;"></div>', unsafe_allow_html=True)
 
 st.subheader("Input Data")
 col1, col2 = st.columns(2)
@@ -313,7 +340,7 @@ if start_btn:
         progress_bar.empty()
         status_text.empty()
         
-        st.markdown("---")
+        st.markdown('<div class="compact-hr"></div>', unsafe_allow_html=True)
         st.subheader("Results")
         
         df = pd.DataFrame(all_results)
@@ -322,18 +349,13 @@ if start_btn:
 
         # === ЛОГИКА ФИЛЬТРАЦИИ ===
         if view_mode == "Errors / Warnings Only":
-            # Оставляем всё, что НЕ "Valid"
             df = df[df['Result'] != 'Valid']
 
         if df.empty and view_mode == "Errors / Warnings Only" and all_results:
-             # Если после фильтрации пусто, значит ошибок нет
              st.success("🎉 Great job! All checked records are VALID. No errors found.")
         elif df.empty and not all_results:
              st.info("No results to display.")
         else:
-            # Сортировка: Сначала Ошибки, потом Частичные совпадения
-            # (Хотя Pandas сортирует по алфавиту, так что Error будет выше Valid)
-            
             def color_status(val):
                 if val == "Valid":
                     return 'background-color: #21aeb3; color: white' 
@@ -351,8 +373,6 @@ if start_btn:
                 height=600
             )
             
-            # Скачиваем ВСЕ результаты или только ОТФИЛЬТРОВАННЫЕ?
-            # Обычно удобнее качать то, что видишь на экране.
             csv = df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label=f"Download CSV ({view_mode})",
