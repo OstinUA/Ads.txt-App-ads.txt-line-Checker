@@ -20,7 +20,6 @@ st.set_page_config(
 )
 
 # ПРИНУДИТЕЛЬНЫЙ ДИЗАЙН:
-# Исправлено: добавлены жесткие стили для Radio Button, чтобы убрать красный цвет
 st.markdown("""
     <style>
     /* 1. Глобальный фон */
@@ -73,22 +72,14 @@ st.markdown("""
         background-color: #2d2d2d;
     }
     
-    /* =============================================
-       7. ИСПРАВЛЕНИЕ РАДИО-КНОПОК (Убираем красный)
-       ============================================= */
-    
-    /* Цвет текста радио-кнопок */
+    /* 7. ИСПРАВЛЕНИЕ РАДИО-КНОПОК (Убираем красный) */
     .stRadio label {
         color: #e0e0e0 !important;
     }
-    
-    /* Внешний круг и внутренний круг (выбранный) */
     div[role="radiogroup"] div[aria-checked="true"] div:first-child {
         background-color: #21aeb3 !important;
         border-color: #21aeb3 !important;
     }
-    
-    /* Убираем стандартную подсветку Streamlit */
     div[role="radiogroup"] > div {
         color: #e0e0e0 !important;
     }
@@ -232,9 +223,19 @@ def validate_domain(target_domain, filename, references):
 st.subheader("Settings")
 col_settings, col_dummy = st.columns([1, 4])
 with col_settings:
+    # 1. Выбор файла
     file_type = st.radio(
         "File Type",
         ("ads.txt", "app-ads.txt")
+    )
+    
+    st.write("---")
+    
+    # 2. Новая настройка вывода (По умолчанию: Errors Only)
+    view_mode = st.radio(
+        "Output View",
+        ("Show All Results", "Errors / Warnings Only"),
+        index=1  # 1 означает, что второй вариант выбран по умолчанию
     )
 
 st.markdown("---")
@@ -319,27 +320,43 @@ if start_btn:
         cols_order = ["URL", "File", "Result", "Details", "Reference"]
         df = df[cols_order]
 
-        def color_status(val):
-            if val == "Valid":
-                return 'background-color: #21aeb3; color: white' 
-            elif val == "Partially matched":
-                return 'background-color: #000000; color: #21aeb3; font-weight: bold'
-            elif val == "Not found":
-                return 'background-color: #383838; color: #aaaaaa'
-            elif val == "Error":
-                return 'background-color: #2d2d2d; color: #888888'
-            return ''
+        # === ЛОГИКА ФИЛЬТРАЦИИ ===
+        if view_mode == "Errors / Warnings Only":
+            # Оставляем всё, что НЕ "Valid"
+            df = df[df['Result'] != 'Valid']
 
-        st.dataframe(
-            df.style.map(color_status, subset=['Result']),
-            use_container_width=True,
-            height=600
-        )
-        
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download CSV",
-            data=csv,
-            file_name="report.csv",
-            mime="text/csv",
-        )
+        if df.empty and view_mode == "Errors / Warnings Only" and all_results:
+             # Если после фильтрации пусто, значит ошибок нет
+             st.success("🎉 Great job! All checked records are VALID. No errors found.")
+        elif df.empty and not all_results:
+             st.info("No results to display.")
+        else:
+            # Сортировка: Сначала Ошибки, потом Частичные совпадения
+            # (Хотя Pandas сортирует по алфавиту, так что Error будет выше Valid)
+            
+            def color_status(val):
+                if val == "Valid":
+                    return 'background-color: #21aeb3; color: white' 
+                elif val == "Partially matched":
+                    return 'background-color: #000000; color: #21aeb3; font-weight: bold'
+                elif val == "Not found":
+                    return 'background-color: #383838; color: #aaaaaa'
+                elif val == "Error":
+                    return 'background-color: #2d2d2d; color: #888888'
+                return ''
+
+            st.dataframe(
+                df.style.map(color_status, subset=['Result']),
+                use_container_width=True,
+                height=600
+            )
+            
+            # Скачиваем ВСЕ результаты или только ОТФИЛЬТРОВАННЫЕ?
+            # Обычно удобнее качать то, что видишь на экране.
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label=f"Download CSV ({view_mode})",
+                data=csv,
+                file_name="report.csv",
+                mime="text/csv",
+            )
