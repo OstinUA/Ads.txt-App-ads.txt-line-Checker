@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import random
 import os
+from urllib.parse import urlparse
 
 icon_path = "icons/icon.png"
 page_icon = icon_path if os.path.exists(icon_path) else None
@@ -125,9 +126,18 @@ def get_session():
     })
     return s
 
+def get_clean_domain(url_input):
+    if not url_input.startswith(("http://", "https://")):
+        url_input = "http://" + url_input
+    try:
+        parsed = urlparse(url_input)
+        return parsed.netloc if parsed.netloc else parsed.path.split('/')[0]
+    except:
+        return url_input.strip()
+
 def fetch_file_content(domain, filename):
     session = get_session()
-    domain_clean = domain.strip().replace("https://", "").replace("http://", "").split("/")[0]
+    domain_clean = get_clean_domain(domain)
     
     urls = [
         f"https://{domain_clean}/{filename}",
@@ -143,7 +153,7 @@ def fetch_file_content(domain, filename):
             
             if response.status_code == 200:
                 text = response.text
-                if "<!doctype html" in text.lower() or "<html" in text.lower():
+                if "<!doctype html" in text.lower() or text.lstrip().lower().startswith("<html"):
                     return None, "Error: HTML Page instead of txt", True
                 return text, "OK", False
                 
@@ -154,7 +164,7 @@ def fetch_file_content(domain, filename):
                 response = session.get(url, timeout=15, allow_redirects=True, verify=False)
                 if response.status_code == 200:
                     text = response.text
-                    if "<!doctype html" in text.lower() or "<html" in text.lower():
+                    if "<!doctype html" in text.lower() or text.lstrip().lower().startswith("<html"):
                         return None, "Error: HTML Page instead of txt", True
                     return text, "OK (SSL Warning)", False
             except Exception as e:
@@ -366,7 +376,7 @@ if st.session_state.results_df is not None:
             height=600
         )
         
-        csv = final_df.to_csv(index=False).encode('utf-8')
+        csv = final_df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label=f"Download CSV ({view_mode})",
             data=csv,
